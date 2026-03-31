@@ -251,9 +251,52 @@ end
 
 -- ─── Export ────────────────────────────────────────────────────────────────
 
+---Parse a command-line argument string into a pre_filled table for export_ui.
+---Mirrors the identical helper in telescope-latex-reference.nvim.
+---@param args_str string
+---@return table
+local function parse_export_args(args_str)
+  if not args_str or args_str == "" then return {} end
+  local result = {}
+  for token in args_str:gmatch("%S+") do
+    local key, val = token:match("^(%w+)=(.+)$")
+    if key and val then
+      if key == "format" then
+        if ({ json=true, csv=true, tsv=true, txt=true })[val] then
+          result.format = val
+        end
+      elseif key == "path" then
+        result.path = vim.fn.expand(val)
+      elseif key == "relative" then
+        result.relative = (val == "true")
+      elseif key == "line" then
+        result.line = (val == "true")
+      elseif key == "title" then
+        result.title = (val == "true")
+      elseif key == "file" then
+        result.file = (val == "true")
+      elseif key == "exclude" then
+        result.exclude_files = vim.split(val, ",", { plain = true })
+      end
+    end
+  end
+  return result
+end
+
+local EXPORT_COMPLETIONS = {
+  "format=json", "format=csv", "format=tsv", "format=txt",
+  "path=",
+  "relative=true", "relative=false",
+  "line=true",     "line=false",
+  "title=true",    "title=false",
+  "file=true",     "file=false",
+  "exclude=",
+}
+
 ---Resolve the current project's root, load (or generate) its label cache,
----and open the interactive export UI.
-M.export_labels = function()
+---and open the export UI (or run directly when pre_filled is complete).
+---@param pre_filled table  Output of parse_export_args (may be empty).
+M.export_labels = function(pre_filled)
   local cache     = require("telescope._extensions.latex_labels.cache")
   local scanner   = require("telescope._extensions.latex_labels.scanner")
   local utils     = require("telescope._extensions.latex_labels.utils")
@@ -278,13 +321,18 @@ M.export_labels = function()
     return
   end
 
-  export_ui.open(entries, root_file, {
-    include_line       = config.export_include_line,
-    include_title      = config.export_include_title,
-    include_file       = config.export_include_file,
-    use_relative_paths = config.export_use_relative_paths,
-    exclude_files      = config.export_exclude_files,
-  })
+  export_ui.open(
+    entries,
+    root_file,
+    {
+      include_line       = config.export_include_line,
+      include_title      = config.export_include_title,
+      include_file       = config.export_include_file,
+      use_relative_paths = config.export_use_relative_paths,
+      exclude_files      = config.export_exclude_files,
+    },
+    pre_filled
+  )
 end
 
 -- ─── Setup ─────────────────────────────────────────────────────────────────
@@ -298,9 +346,25 @@ M.setup = function(user_config)
     M.open()
   end, { desc = "Open latex-labels Snacks picker" })
 
-  vim.api.nvim_create_user_command("SnacksLatexLabelsExport", function()
-    M.export_labels()
-  end, { desc = "Export LaTeX labels to JSON / CSV / TSV / TXT" })
+  -- :SnacksLatexLabelsExport [key=value ...] — export labels with optional args.
+  -- Bang (!) forces the full interactive UI regardless of arguments.
+  vim.api.nvim_create_user_command("SnacksLatexLabelsExport", function(cmd_opts)
+    local pre_filled = cmd_opts.bang and {} or parse_export_args(cmd_opts.args)
+    M.export_labels(pre_filled)
+  end, {
+    nargs    = "*",
+    bang     = true,
+    complete = function(arglead)
+      local matches = {}
+      for _, c in ipairs(EXPORT_COMPLETIONS) do
+        if c:sub(1, #arglead) == arglead then
+          table.insert(matches, c)
+        end
+      end
+      return matches
+    end,
+    desc = "Export LaTeX labels to JSON / CSV / TSV / TXT",
+  })
 end
 
 return M
