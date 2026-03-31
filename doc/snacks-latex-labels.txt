@@ -1,0 +1,430 @@
+*snacks-latex-labels.txt*   Snacks picker for LaTeX label navigation
+
+                                                      *snacks-latex-labels*
+
+SNACKS LATEX LABELS
+
+1. Intro .................... |snacks-latex-labels-intro|
+2. Requirements ............. |snacks-latex-labels-requirements|
+3. Installation ............. |snacks-latex-labels-installation|
+4. Setup .................... |snacks-latex-labels-setup|
+5. Usage .................... |snacks-latex-labels-usage|
+6. Smart Jump ............... |snacks-latex-labels-smart-jump|
+7. Subfile Toggle ........... |snacks-latex-labels-subfile|
+8. Copy Label ............... |snacks-latex-labels-copy|
+9. Label Export ............. |snacks-latex-labels-export|
+10. Configuration ........... |snacks-latex-labels-config|
+11. Commands ................ |snacks-latex-labels-commands|
+12. Shared Cache ............ |snacks-latex-labels-cache|
+
+==============================================================================
+1. INTRO                                       *snacks-latex-labels-intro*
+
+snacks-latex-labels.nvim is a Snacks.nvim picker for fast LaTeX label
+navigation across multi-file projects. It is the Snacks-native companion
+to telescope-latex-labels.nvim and shares the same on-disk cache, so the
+project is scanned only once regardless of which picker is opened first.
+
+Labels are discovered by recursively scanning the project from a root
+`.tex` file, following `\include` and `\input` directives. Two classes of
+label are supported out of the box:
+
+  • Environment labels  `\begin{thm}{Snake Lemma}{snakeLem}`
+    The environment name is mapped to a prefix via the `transformations`
+    table (`thm` → `th:`), producing the id `th:snakeLem`.
+
+  • Standard labels     `\label{id}`
+    Context is inferred by looking back through the preceding lines for
+    the nearest meaningful content (section title, question text, or any
+    custom LaTeX command).
+
+==============================================================================
+2. REQUIREMENTS                          *snacks-latex-labels-requirements*
+
+  • folke/snacks.nvim
+  • Chiarandini/latex-nav-core.nvim   (shared cache and Snacks factory)
+  • Chiarandini/telescope-latex-reference.nvim
+    (cache I/O, scanner, and smart-jump utilities)
+
+==============================================================================
+3. INSTALLATION                          *snacks-latex-labels-installation*
+
+lazy.nvim: >
+
+  {
+    "Chiarandini/snacks-latex-labels.nvim",
+    dependencies = {
+      "folke/snacks.nvim",
+      "Chiarandini/latex-nav-core.nvim",
+      "Chiarandini/telescope-latex-reference.nvim",
+    },
+    config = function()
+      require("snacks_latex_labels").setup({})
+    end,
+  }
+<
+
+==============================================================================
+4. SETUP                                       *snacks-latex-labels-setup*
+
+Call `setup()` with an optional configuration table. All keys are optional;
+defaults are shown below: >
+
+  require("snacks_latex_labels").setup({
+    cache_strategy    = "global",
+    recursive         = true,
+    auto_update       = false,
+    enable_smart_jump = true,
+    smart_jump_window = 200,
+
+    root_file          = "",
+    subfile_toggle_key = "<C-g>",
+
+    copy_label_key = "<C-y>",
+    copy_transform = nil,
+
+    -- Export defaults (overridable per-invocation; see |:SnacksLatexLabelsExport|)
+    export_include_line       = true,
+    export_include_title      = true,
+    export_include_file       = true,
+    export_use_relative_paths = false,
+    export_exclude_files      = {},
+
+    transformations = {
+      thm = "th:", prop = "pr:", defn = "df:",
+      lem = "lm:", cor = "co:", example = "ex:", exercise = "x:",
+    },
+    patterns = {
+      { pattern = "\\begin{(%w+)}{(.-)}{(.-)}", type = "environment" },
+      { pattern = "\\label{(.-)}", type = "standard" },
+    },
+  })
+<
+
+Suggested keybinding: >
+
+  vim.keymap.set("n", "<leader>fl",
+    "<cmd>SnacksLatexLabels<cr>",
+    { desc = "Find LaTeX labels (Snacks)" })
+<
+
+==============================================================================
+5. USAGE                                       *snacks-latex-labels-usage*
+
+Open the picker: >
+
+  :SnacksLatexLabels
+<
+
+  • The project is scanned automatically on first use and the cache is
+    written to disk. All subsequent opens read the cache directly.
+
+  • Root-file detection uses vimtex (`b:vimtex.tex`) when available, and
+    falls back to the current buffer's file otherwise.
+
+  • Each entry is displayed as:
+      [label_id] :: context  (filename:line)
+
+  • Selecting an entry triggers a smart jump
+    (see |snacks-latex-labels-smart-jump|).
+
+==============================================================================
+6. SMART JUMP                             *snacks-latex-labels-smart-jump*
+
+When you select a label the plugin verifies whether the cached line number
+still holds the expected label in the target file.
+
+  Match    The label is exactly where the cache says it is. Jump silently.
+
+  Shifted  The label is not at the cached line, but is found within
+           ±`smart_jump_window` lines. Jump to the new position and patch
+           the cache entry automatically.
+           Message: "Label shifted. Cache auto-updated."
+
+  Missing  The label cannot be found anywhere in the search window. Jump
+           to the original cached line and warn the user.
+           Message: "[Warning] Label not found. Please run
+           :LatexLabelsUpdate."
+
+Set `enable_smart_jump = false` to skip verification and jump directly to
+the cached line number without any checks.
+
+==============================================================================
+7. SUBFILE TOGGLE                           *snacks-latex-labels-subfile*
+
+When editing a LaTeX subfile (using the `subfiles` package), the plugin
+detects a root file by checking three sources in order:
+
+  1. vimtex — `b:vimtex.tex` when vimtex is active.
+  2. `\documentclass[root.tex]{subfiles}` — parsed from the first 20
+     lines of the current file.
+  3. `root_file` config key — an absolute path set manually as a fallback.
+
+When the root file differs from the file you are editing, the picker title
+reflects the current mode and the available toggle key:
+
+  Full-project mode (default) ~
+    Shows all labels from the entire project. Title: >
+      LaTeX Labels (full project) [<C-g>: this file]
+<
+  This-file mode ~
+    Shows only labels from the current file. Title: >
+      LaTeX Labels (this file) [<C-g>: full project]
+<
+Press `subfile_toggle_key` (default `<C-g>`) inside the picker to switch
+between modes.
+
+==============================================================================
+8. COPY LABEL                               *snacks-latex-labels-copy*
+
+Press `copy_label_key` (default `<C-y>`) inside the picker to copy the
+selected label's reference to the system clipboard (`+` register) without
+opening the file.
+
+copy_transform ~
+
+An optional hook applied to the label string before it is placed in the
+clipboard.
+
+Table — map label prefixes to Lua format strings: >
+
+  copy_transform = {
+    ["df:"] = "\\cref{%s}",
+    ["lm:"] = "\\cref{%s}",
+    ["eq:"] = "equation~\\eqref{%s}",
+  },
+<
+Function — for logic a table cannot express: >
+
+  copy_transform = function(label)
+    return "\\cref{" .. label .. "}"
+  end,
+<
+When `nil` (the default) the raw label id is copied.
+
+==============================================================================
+9. LABEL EXPORT                             *snacks-latex-labels-export*
+
+The |:SnacksLatexLabelsExport| command writes the current project's labels
+to a file. Four formats are available: JSON, CSV, TSV, and plain text.
+
+FORMATS ~
+
+JSON ~
+
+A single object with `project_root`, `export_date` (ISO 8601 UTC), and a
+`labels` array. Each element: >
+
+  {
+    "id":    "df:zeroSet",
+    "type":  "df",
+    "title": "Zero Set",
+    "file":  "/proj/chapters/ch1.tex",
+    "line":  164
+  }
+<
+`type` is always present (empty string when the id has no colon prefix).
+`title`, `file`, and `line` are omitted when the corresponding inclusion
+flag is `false`.
+
+CSV ~
+
+RFC 4180, with header row `Label ID,Type[,Title][,File][,Line]`.
+Fields containing commas or double-quotes are quoted per RFC 4180.
+
+TSV ~
+
+Tab-separated, same column order. Embedded tabs are replaced by spaces.
+
+Plain Text ~
+
+One label per line, pipe-separated: `[line|]id[|title][|file]`.
+No header row; disabled columns are dropped entirely.
+
+OUTPUT PATH ~
+
+The path prompt and the `path=` argument accept:
+
+  Absolute paths          `/home/user/labels.json`
+  Paths with `~`          `~/Documents/labels.csv`
+  Paths with `$VAR`       `$HOME/export/labels.tsv`
+  Relative paths          `subdir/labels.json`  (resolved from cwd)
+  Directory paths         `.` or `~/Documents`
+    → default filename appended: `project_labels.<ext>`
+
+EXAMPLES ~
+
+Interactive export (all prompts): >
+
+  :SnacksLatexLabelsExport
+<
+Silent JSON export to the project root: >
+
+  :SnacksLatexLabelsExport format=json path=. relative=false
+<
+Minimal CSV — IDs and titles only: >
+
+  :SnacksLatexLabelsExport format=csv line=false file=false path=~/out.csv
+<
+Exclude files matching a pattern: >
+
+  :SnacksLatexLabelsExport format=json exclude=archive,backup
+<
+Force the full interactive UI: >
+
+  :SnacksLatexLabelsExport!
+<
+
+==============================================================================
+10. CONFIGURATION                            *snacks-latex-labels-config*
+
+All options are passed to `require("snacks_latex_labels").setup()`.
+
+cache_strategy ~
+    Type: string  Default: `"global"`
+
+    `"global"` stores all caches in Neovim's standard data directory:
+      stdpath("data")/cached_labels/<hash>.labels
+
+    `"local"` creates a hidden file next to the root `.tex` file:
+      /path/to/dir/.main.tex.labels
+
+recursive ~
+    Type: boolean  Default: `true`
+
+    Follow `\include` and `\input` directives when scanning.
+
+auto_update ~
+    Type: boolean  Default: `false`
+
+    Regenerate the cache every time any `.tex` file is saved.
+
+enable_smart_jump ~
+    Type: boolean  Default: `true`
+
+    Search for labels that have shifted from their cached position.
+    See |snacks-latex-labels-smart-jump|.
+
+smart_jump_window ~
+    Type: integer  Default: `200`
+
+    Lines to search on each side of the cached position.
+
+root_file ~
+    Type: string  Default: `""`
+
+    Absolute path to the root `.tex` file. Used as a manual fallback
+    when vimtex is inactive and auto-detection fails.
+
+subfile_toggle_key ~
+    Type: string  Default: `"<C-g>"`
+
+    Key to toggle between full-project and this-file view inside the
+    picker. See |snacks-latex-labels-subfile|.
+
+copy_label_key ~
+    Type: string  Default: `"<C-y>"`
+
+    Key to copy the selected label reference to the system clipboard
+    without navigating to the file.
+
+copy_transform ~
+    Type: table | function | nil  Default: `nil`
+
+    Transform applied to the label string before it is placed in the
+    clipboard. See |snacks-latex-labels-copy|.
+
+export_include_line ~
+    Type: boolean  Default: `true`
+
+    Include line numbers in exported records. Override per-invocation
+    with the `line=` argument to |:SnacksLatexLabelsExport|.
+
+export_include_title ~
+    Type: boolean  Default: `true`
+
+    Include label titles in exported records. Override with `title=`.
+
+export_include_file ~
+    Type: boolean  Default: `true`
+
+    Include file paths in exported records. Override with `file=`.
+    When `false`, the path-style prompt is skipped automatically.
+
+export_use_relative_paths ~
+    Type: boolean  Default: `false`
+
+    When `true`, file paths in exported records are relative to the
+    project root directory. Override with `relative=`.
+
+export_exclude_files ~
+    Type: table  Default: `{}`
+
+    Lua patterns. Labels whose filename matches any pattern are omitted
+    from all exported output. Override with `exclude=`.
+
+transformations ~
+    Type: table (string → string)
+
+    Maps LaTeX environment names to label prefixes. Used when the
+    `"environment"` pattern matches a line.
+
+patterns ~
+    Type: table (list of { pattern, type })
+
+    Ordered list of capture patterns. See the telescope-latex-labels
+    documentation for full details.
+
+==============================================================================
+11. COMMANDS                                *snacks-latex-labels-commands*
+
+:SnacksLatexLabels                               *:SnacksLatexLabels*
+
+    Open the Snacks label picker for the current LaTeX project.
+    Generates the cache on first use.
+
+:SnacksLatexLabelsExport[!] [args]        *:SnacksLatexLabelsExport*
+
+    Export all labels for the current project. With no arguments, three
+    sequential prompts guide you through format → path → path style.
+    Adding `!` (bang) forces the full interactive UI.
+
+    All arguments are optional `key=value` tokens separated by spaces.
+
+    `format=json|csv|tsv|txt`     Skip the format prompt.
+    `path=<filepath>`             Skip the path prompt.
+    `relative=true|false`         Skip the path-style prompt.
+    `line=true|false`             Override `export_include_line`.
+    `title=true|false`            Override `export_include_title`.
+    `file=true|false`             Override `export_include_file`.
+    `exclude=pat1,pat2,...`       Override `export_exclude_files`.
+
+    Tab-completion is available for all argument keys and common values.
+    See |snacks-latex-labels-export| for full documentation and examples.
+
+==============================================================================
+12. SHARED CACHE                             *snacks-latex-labels-cache*
+
+Both this plugin and telescope-latex-labels.nvim call
+`latex_nav_core.cache.get_cache_path` with the same arguments, resolving
+to the same `.labels` file. The project is scanned only on the first open,
+whichever picker triggers it.
+
+Cache files are plain text — one label per line: >
+
+  line_number|label_id|context|absolute_filepath
+<
+Example: >
+
+  50|th:snakeLem|Snake Lemma|/Users/me/thesis/chapter1.tex
+  102|pr:bigProp|Main Proposition|/Users/me/thesis/chapter1.tex
+<
+
+For `cache_strategy = "global"`:
+  stdpath("data")/cached_labels/<sha256-of-root-path>.labels
+
+For `cache_strategy = "local"`:
+  /path/to/project/.main.tex.labels  (add `*.labels` to `.gitignore`)
+
+==============================================================================
+vim:ft=help:tw=78:
