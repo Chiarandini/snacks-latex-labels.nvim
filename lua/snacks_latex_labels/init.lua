@@ -8,6 +8,7 @@ local DEFAULT_CONFIG = {
   cache_strategy    = "global",
   recursive         = true,
   auto_update       = false,
+  notify_on_update  = true,
   enable_smart_jump = true,
   smart_jump_window = 200,
 
@@ -180,7 +181,9 @@ M.open = function(overrides)
 
       if found and found ~= e.line then
         target_line = found
-        vim.notify("[snacks_latex_labels] Label shifted. Cache auto-updated.", vim.log.levels.INFO)
+        if config.notify_on_update then
+          vim.notify("[snacks_latex_labels] Label shifted. Cache auto-updated.", vim.log.levels.INFO)
+        end
 
         local all = cache.read_cache(cache_path)
         if all then
@@ -340,6 +343,15 @@ end
 ---Configure the plugin and register commands.
 ---@param user_config table|nil  Overrides for DEFAULT_CONFIG.
 M.setup = function(user_config)
+  if not pcall(require, "latex_nav_core.cache") then
+    vim.notify(
+      "[snacks_latex_labels] Missing required dependency: latex-nav-core.nvim\n"
+        .. "  Add 'Chiarandini/latex-nav-core.nvim' to your plugin manager.",
+      vim.log.levels.ERROR
+    )
+    return
+  end
+
   config = vim.tbl_deep_extend("force", DEFAULT_CONFIG, user_config or {})
 
   vim.api.nvim_create_user_command("SnacksLatexLabels", function()
