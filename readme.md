@@ -2,7 +2,7 @@
 
 A [Snacks.nvim](https://github.com/folke/snacks.nvim) picker for fast LaTeX
 label navigation. This is the Snacks-native companion to
-[telescope-latex-labels.nvim](https://github.com/Chiarandini/telescope-latex-reference.nvim).
+[telescope-latex-labels.nvim](https://github.com/Chiarandini/telescope-latex-references).
 
 Both plugins share the same on-disk cache, so the project is only scanned once
 regardless of which picker you open first.
@@ -13,7 +13,7 @@ regardless of which picker you open first.
 |---|---|
 | [folke/snacks.nvim](https://github.com/folke/snacks.nvim) | Picker UI |
 | [Chiarandini/latex-nav-core.nvim](https://github.com/Chiarandini/latex-nav-core.nvim) | Shared cache utilities and Snacks factory |
-| [Chiarandini/telescope-latex-reference.nvim](https://github.com/Chiarandini/telescope-latex-reference.nvim) | Cache I/O, scanner, and smart-jump utilities |
+| [Chiarandini/telescope-latex-references](https://github.com/Chiarandini/telescope-latex-references) | Cache I/O, scanner, and smart-jump utilities |
 
 ## Installation
 
@@ -25,7 +25,7 @@ regardless of which picker you open first.
   dependencies = {
     "folke/snacks.nvim",
     "Chiarandini/latex-nav-core.nvim",
-    "Chiarandini/telescope-latex-reference.nvim",
+    "Chiarandini/telescope-latex-references",
   },
   config = function()
     require("snacks_latex_labels").setup({
@@ -73,7 +73,7 @@ The picker behaviour is identical to the Telescope version:
 ## Configuration
 
 All options are identical to
-[telescope-latex-labels.nvim](https://github.com/Chiarandini/telescope-latex-reference.nvim#configuration-reference).
+[telescope-latex-labels.nvim](https://github.com/Chiarandini/telescope-latex-references#configuration-reference).
 If you use both pickers, pass the same table to both `setup()` calls to ensure
 they share the same cache.
 
