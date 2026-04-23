@@ -70,9 +70,13 @@ end
 ---@param overrides table|nil  Internal overrides for toggle: { mode, origin_filepath, root_filepath }
 M.open = function(overrides)
   local core_snacks = require("latex_nav_core.snacks")
+  local utils       = require("latex_nav_core.latex")
+  -- cache and scanner are plugin-specific (label format + latex project
+  -- scanner) and live inside telescope-latex-references' rtp. Shared
+  -- latex helpers (root detection + smart-jump verification) now come
+  -- from latex_nav_core.latex.
   local cache   = require("telescope._extensions.latex_labels.cache")
   local scanner = require("telescope._extensions.latex_labels.scanner")
-  local utils   = require("telescope._extensions.latex_labels.utils")
 
   overrides = overrides or {}
   local mode = overrides.mode or "global"
@@ -302,7 +306,7 @@ local EXPORT_COMPLETIONS = {
 M.export_labels = function(pre_filled)
   local cache     = require("telescope._extensions.latex_labels.cache")
   local scanner   = require("telescope._extensions.latex_labels.scanner")
-  local utils     = require("telescope._extensions.latex_labels.utils")
+  local utils     = require("latex_nav_core.latex")
   local export_ui = require("latex_nav_core.export_ui")
 
   local root_file = utils.get_root_file()
