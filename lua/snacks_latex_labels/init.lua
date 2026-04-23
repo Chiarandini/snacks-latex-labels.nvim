@@ -71,12 +71,11 @@ end
 M.open = function(overrides)
   local core_snacks = require("latex_nav_core.snacks")
   local utils       = require("latex_nav_core.latex")
-  -- cache and scanner are plugin-specific (label format + latex project
-  -- scanner) and live inside telescope-latex-references' rtp. Shared
-  -- latex helpers (root detection + smart-jump verification) now come
-  -- from latex_nav_core.latex.
-  local cache   = require("telescope._extensions.latex_labels.cache")
-  local scanner = require("telescope._extensions.latex_labels.scanner")
+  -- All business logic (cache I/O, label scanner, latex helpers) lives in
+  -- latex-nav-core. telescope-latex-references is no longer a runtime
+  -- dependency of this plugin.
+  local cache   = require("latex_nav_core.latex_labels.cache")
+  local scanner = require("latex_nav_core.latex_labels.scanner")
 
   overrides = overrides or {}
   local mode = overrides.mode or "global"
@@ -304,8 +303,8 @@ local EXPORT_COMPLETIONS = {
 ---and open the export UI (or run directly when pre_filled is complete).
 ---@param pre_filled table  Output of parse_export_args (may be empty).
 M.export_labels = function(pre_filled)
-  local cache     = require("telescope._extensions.latex_labels.cache")
-  local scanner   = require("telescope._extensions.latex_labels.scanner")
+  local cache     = require("latex_nav_core.latex_labels.cache")
+  local scanner   = require("latex_nav_core.latex_labels.scanner")
   local utils     = require("latex_nav_core.latex")
   local export_ui = require("latex_nav_core.export_ui")
 
