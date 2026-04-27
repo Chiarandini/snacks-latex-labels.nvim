@@ -52,11 +52,17 @@ regardless of which picker you open first.
 
 ## Usage
 
-```
-:SnacksLatexLabels
-```
+The plugin registers the following user commands:
 
-Or map it:
+| Command | Effect |
+|---|---|
+| `:SnacksLatexLabels` | Open the labels picker for the current project. |
+| `:SnacksLatexLabelsExport` | Export labels (key=value form or interactive UI; see below). |
+| `:LatexLabels update` | Regenerate the cache for the current project's root. |
+| `:LatexLabels inspect` | Open the on-disk cache file in a read-only split. |
+| `:LatexLabels wipe` | Delete every cache file under `cache_strategy`. |
+
+Or map the picker:
 
 ```lua
 vim.keymap.set("n", "<leader>fl",

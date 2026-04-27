@@ -343,23 +343,109 @@ end
 
 -- ─── Setup ─────────────────────────────────────────────────────────────────
 
----Configure the plugin and register commands.
----@param user_config table|nil  Overrides for DEFAULT_CONFIG.
-M.setup = function(user_config)
-  if not pcall(require, "latex_nav_core.cache") then
-    vim.notify(
-      "[snacks_latex_labels] Missing required dependency: latex-nav-core.nvim\n"
-        .. "  Add 'Chiarandini/latex-nav-core.nvim' to your plugin manager.",
-      vim.log.levels.ERROR
-    )
+-- ─── Cache management commands ────────────────────────────────────────────
+
+---Regenerate the latex-labels cache for the current project's root file.
+local function update_cache()
+  local cache   = require("latex_nav_core.latex_labels.cache")
+  local scanner = require("latex_nav_core.latex_labels.scanner")
+  local utils   = require("latex_nav_core.latex")
+  local root = utils.get_root_file()
+  if not root then
+    vim.notify("[latex_labels] No file associated with current buffer.", vim.log.levels.WARN)
     return
   end
+  local entries    = scanner.scan_project(root, config)
+  local cache_path = cache.get_cache_path(root, config.cache_strategy)
+  local ok, err    = cache.write_cache(cache_path, entries)
+  if ok then
+    if config.notify_on_update ~= false then
+      vim.notify(string.format("[latex_labels] Cache updated (%d labels).", #entries),
+        vim.log.levels.INFO)
+    end
+  else
+    vim.notify("[latex_labels] Failed to write cache: " .. (err or "unknown"),
+      vim.log.levels.ERROR)
+  end
+end
 
-  config = vim.tbl_deep_extend("force", DEFAULT_CONFIG, user_config or {})
+---Open the on-disk cache file for the current project in a read-only split.
+local function inspect_cache()
+  local cache = require("latex_nav_core.latex_labels.cache")
+  local utils = require("latex_nav_core.latex")
+  local root  = utils.get_root_file()
+  if not root then
+    vim.notify("[latex_labels] No file associated with current buffer.", vim.log.levels.WARN)
+    return
+  end
+  local cache_path = cache.get_cache_path(root, config.cache_strategy)
+  if vim.fn.filereadable(cache_path) == 0 then
+    vim.notify("[latex_labels] No cache found. Run :LatexLabels update to generate it.",
+      vim.log.levels.WARN)
+    return
+  end
+  vim.cmd("split " .. vim.fn.fnameescape(cache_path))
+  vim.bo.readonly   = true
+  vim.bo.modifiable = false
+end
 
+---Delete every latex-labels cache file under the configured strategy.
+local function wipe_all_caches()
+  local cache       = require("latex_nav_core.latex_labels.cache")
+  local count, err  = cache.wipe_all_caches(config.cache_strategy)
+  if err then
+    vim.notify("[latex_labels] " .. err, vim.log.levels.WARN)
+  else
+    vim.notify(string.format("[latex_labels] Wiped %d cache file(s).", count),
+      vim.log.levels.INFO)
+  end
+end
+
+---Auto-update the cache on save when `auto_update = true`.
+local function register_auto_update()
+  if not config.auto_update then return end
+  vim.api.nvim_create_autocmd("BufWritePost", {
+    group   = vim.api.nvim_create_augroup("SnacksLatexLabelsAutoUpdate", { clear = true }),
+    pattern = "*.tex",
+    desc    = "latex-labels: auto-regenerate cache on save",
+    callback = function() update_cache() end,
+  })
+end
+
+local LATEX_LABELS_SUBS = {
+  update  = update_cache,
+  inspect = inspect_cache,
+  wipe    = wipe_all_caches,
+}
+
+---Register the `:LatexLabels <subcommand>` user command.
+local function register_user_commands()
   vim.api.nvim_create_user_command("SnacksLatexLabels", function()
     M.open()
   end, { desc = "Open latex-labels Snacks picker" })
+
+  vim.api.nvim_create_user_command("LatexLabels", function(o)
+    local sub = o.fargs[1]
+    local fn  = LATEX_LABELS_SUBS[sub]
+    if not fn then
+      vim.notify("Usage: :LatexLabels {update|inspect|wipe}", vim.log.levels.WARN)
+      return
+    end
+    fn()
+  end, {
+    nargs    = 1,
+    complete = function(_, line)
+      local args    = vim.split(line, "%s+", { trimempty = true })
+      local partial = args[2] or ""
+      local matches = {}
+      for k in pairs(LATEX_LABELS_SUBS) do
+        if k:find(partial, 1, true) == 1 then table.insert(matches, k) end
+      end
+      table.sort(matches)
+      return matches
+    end,
+    desc = "LaTeX-labels cache (update|inspect|wipe)",
+  })
 
   -- :SnacksLatexLabelsExport [key=value ...] — export labels with optional args.
   -- Bang (!) forces the full interactive UI regardless of arguments.
@@ -380,6 +466,34 @@ M.setup = function(user_config)
     end,
     desc = "Export LaTeX labels to JSON / CSV / TSV / TXT",
   })
+end
+
+-- ─── Setup ─────────────────────────────────────────────────────────────────
+
+---Configure the plugin and register commands.
+---
+--- Registered commands:
+---   :SnacksLatexLabels             -- open the Snacks picker for the current project.
+---   :SnacksLatexLabelsExport       -- export labels (key=value form or interactive UI).
+---   :LatexLabels update            -- regenerate the cache for the current root.
+---   :LatexLabels inspect           -- open the cache file in a read-only split.
+---   :LatexLabels wipe              -- delete every cache file under `cache_strategy`.
+---
+---@param user_config table|nil  Overrides for DEFAULT_CONFIG.
+M.setup = function(user_config)
+  if not pcall(require, "latex_nav_core.cache") then
+    vim.notify(
+      "[snacks_latex_labels] Missing required dependency: latex-nav-core.nvim\n"
+        .. "  Add 'Chiarandini/latex-nav-core.nvim' to your plugin manager.",
+      vim.log.levels.ERROR
+    )
+    return
+  end
+
+  config = vim.tbl_deep_extend("force", DEFAULT_CONFIG, user_config or {})
+
+  register_user_commands()
+  register_auto_update()
 end
 
 return M
