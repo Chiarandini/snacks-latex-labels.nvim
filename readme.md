@@ -7,6 +7,8 @@ label navigation. This is the Snacks-native companion to
 Both plugins share the same on-disk cache, so the project is only scanned once
 regardless of which picker you open first.
 
+![Filtering project labels and jumping to one](assets/labels.gif)
+
 ## Dependencies
 
 | Plugin | Role |
@@ -75,6 +77,68 @@ The picker behaviour is identical to the Telescope version:
 - **Enter** — smart jump to the label (verifies position, auto-patches cache if shifted)
 - **`<C-y>`** — copy the label id to the system clipboard (with optional `copy_transform`)
 - **`<C-g>`** — subfile toggle (full project ↔ this file) when editing a subfile
+
+## Implicit labels
+
+`patterns` has two entries. The first is what makes custom theorem environments
+work:
+
+```lua
+{ pattern = "\\begin{(%w+)}{(.-)}{(.-)}", type = "environment" }
+```
+
+Some environments issue their own `\label` from an argument, so no `\label{...}`
+is written in the document at all. Given `\begin{thm}{Title}{key}` that expands
+to a `\label{th:key}`, the scanner takes the environment name and the third
+brace group and rebuilds the id as `transformations[env] .. key`, with the title
+as the picker's context. Environments missing from `transformations` are
+skipped.
+
+![The picker offering label ids that appear nowhere in the file](assets/labels-implicit.gif)
+
+The second pattern is the ordinary `\label{...}`. Its context cannot come from
+the label itself, so the scanner looks back up to eight lines for the first
+non-blank, non-comment line and takes its first brace group, else its first
+bracket group, else the command name.
+
+## Copying a reference
+
+`<C-y>` copies a reference to the label rather than the label id.
+`copy_transform` dispatches on the prefix: the first prefix the id starts with
+wins, and its value is a format string receiving the whole id.
+
+```lua
+copy_transform = {
+  ["th:"] = "\\cref{%s}",
+  ["lm:"] = "\\cref{%s}",
+  ["df:"] = "\\cref{%s}",
+  ["ex:"] = "example~\\ref{%s}",
+  ["eq:"] = "equation~\\eqref{%s}",
+}
+```
+
+So `<C-y>` on `th:ffd` gives `\cref{th:ffd}` and on `eq:amitsur` gives
+`equation~\eqref{eq:amitsur}`. The text goes to both `+` and `"`.
+
+![One key copying \cref for a theorem and equation~\eqref for an equation](assets/labels-copy.gif)
+
+A function is accepted for anything a prefix table cannot express.
+`copy_transform` defaults to `nil`, which copies the bare id. NoetherVim's
+`latex` bundle ships the map above.
+
+## Main file and subfiles
+
+The picker scans the project root, not the buffer. The root comes from
+`b:vimtex.tex` when vimtex is loaded, otherwise from walking up through
+`\documentclass[<relative-path>]{subfiles}` in the first 20 lines, and finally
+from `root_file`. With `recursive = true` the scan follows `\include`, `\input`,
+and `\subfile`, so labels in a sibling section are listed while you edit a
+different one, and Enter opens that file.
+
+![Toggling between whole-project and single-file label scope](assets/labels-subfile.gif)
+
+`<C-g>` toggles the scope between the whole project and the current file. The
+picker title states which view is active.
 
 ## Configuration
 
