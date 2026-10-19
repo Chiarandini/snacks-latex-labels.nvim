@@ -14,8 +14,7 @@ regardless of which picker you open first.
 | Plugin | Role |
 |---|---|
 | [folke/snacks.nvim](https://github.com/folke/snacks.nvim) | Picker UI |
-| [Chiarandini/latex-nav-core.nvim](https://github.com/Chiarandini/latex-nav-core.nvim) | Shared cache utilities and Snacks factory |
-| [Chiarandini/telescope-latex-references](https://github.com/Chiarandini/telescope-latex-references) | Cache I/O, scanner, and smart-jump utilities |
+| [Chiarandini/latex-nav-core.nvim](https://github.com/Chiarandini/latex-nav-core.nvim) | Scanner, cache, and smart-jump utilities |
 
 ## Installation
 
@@ -27,7 +26,6 @@ regardless of which picker you open first.
   dependencies = {
     "folke/snacks.nvim",
     "Chiarandini/latex-nav-core.nvim",
-    "Chiarandini/telescope-latex-references",
   },
   config = function()
     require("snacks_latex_labels").setup({

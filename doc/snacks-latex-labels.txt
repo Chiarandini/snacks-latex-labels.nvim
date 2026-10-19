@@ -42,9 +42,8 @@ label are supported out of the box:
 2. REQUIREMENTS                          *snacks-latex-labels-requirements*
 
   • folke/snacks.nvim
-  • Chiarandini/latex-nav-core.nvim   (shared cache and Snacks factory)
-  • Chiarandini/telescope-latex-reference.nvim
-    (cache I/O, scanner, and smart-jump utilities)
+  • Chiarandini/latex-nav-core.nvim   (scanner, cache, and smart-jump
+                                       utilities)
 
 ==============================================================================
 3. INSTALLATION                          *snacks-latex-labels-installation*
@@ -56,7 +55,6 @@ lazy.nvim: >
     dependencies = {
       "folke/snacks.nvim",
       "Chiarandini/latex-nav-core.nvim",
-      "Chiarandini/telescope-latex-reference.nvim",
     },
     config = function()
       require("snacks_latex_labels").setup({})
